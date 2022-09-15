@@ -406,6 +406,11 @@ class CompletionContext(object):
             self.triggerCharacter = triggerCharacter
 
 
+class ReferenceContext:
+    def __init__(self, includeDeclaration: bool = False):
+        self.includeDeclaration = includeDeclaration
+
+
 class TextEdit(object):
     """
     A textual edit applicable to a text document.

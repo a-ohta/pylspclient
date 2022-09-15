@@ -193,3 +193,21 @@ class LspClient(object):
                 return lsp_structs.Location(**result_dict)
 
             return [lsp_structs.Location(**l) if "uri" in l else lsp_structs.LinkLocation(**l) for l in result_dict]
+
+    def references(self, textDocument, position, context):
+            """
+            The go to definition request is sent from the client to the server to resolve the declaration location of a 
+            symbol at a given text document position.
+
+            The result type LocationLink[] got introduce with version 3.14.0 and depends in the corresponding client
+            capability `clientCapabilities.textDocument.declaration.linkSupport`.
+
+            :param TextDocumentItem textDocument: The text document.
+            :param Position position: The position inside the text document.
+            """
+            result_dict = self.lsp_endpoint.call_method("textDocument/references", textDocument=textDocument, position=position, context=context)
+            print(result_dict)
+            if "uri" in result_dict:
+                return lsp_structs.Location(**result_dict)
+
+            return [lsp_structs.Location(**l) if "uri" in l else lsp_structs.LinkLocation(**l) for l in result_dict]
