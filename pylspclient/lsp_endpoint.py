@@ -1,4 +1,5 @@
 from __future__ import print_function
+from sys import stderr
 import threading
 import collections
 from pylspclient import lsp_structs
@@ -33,7 +34,7 @@ class LspEndpoint(threading.Thread):
             try:
                 jsonrpc_message = self.json_rpc_endpoint.recv_response()
                 if jsonrpc_message is None:
-                    print("server quit")
+                    print("server quit", file=stderr)
                     break
                 method = jsonrpc_message.get("method")
                 result = jsonrpc_message.get("result")
@@ -58,7 +59,8 @@ class LspEndpoint(threading.Thread):
                             print(
                                 "Notify method not found: {method}: {param}.".format(
                                     method=method, param=params
-                                )
+                                ),
+                                file=stderr,
                             )
                         else:
                             self.notify_callbacks[method](params)

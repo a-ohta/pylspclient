@@ -1,71 +1,84 @@
-from time import sleep
-import pylspclient
 import subprocess
 import threading
-import argparse
-from pylspclient.lsp_client import LspClient
+from pathlib import Path
+from sys import stderr
+from time import sleep
+from typing import IO, Any, Dict, Set, Union
 
-from pylspclient.lsp_structs import DocumnetSymbol, SymbolInformation
+import click
+
+import pylspclient
+from pylspclient.lsp_client import LspClient
+from pylspclient.lsp_structs import DocumnetSymbol, SymbolInformation, TextDocumentItem
 
 PHP_LANGUAGE_SERVER = "/home/a-ohta/php-language-server"
+## root directory for diagnose
+ROOT_DIR = "/home/a-ohta/Buzz/"
+## target file for get references
+FILE_PATH = "/home/a-ohta/Buzz/lib/Client/BuzzClientInterface.php"
+
+FILE_PARSE_TIMEOUT_SEC = 30
+_DONE_FILES: Set[str] = set()
 
 
 class ReadPipe(threading.Thread):
-    def __init__(self, pipe):
+    def __init__(self, pipe: IO[bytes]):
         threading.Thread.__init__(self)
         self.pipe = pipe
 
     def run(self):
         line = self.pipe.readline().decode("utf-8")
         while line:
-            print(line)
+            print(line, file=stderr)
             line = self.pipe.readline().decode("utf-8")
 
 
-def get_reference(lsp_client: LspClient, symbol: DocumnetSymbol):
-    line = symbol.range.start.line
-    character = symbol.range.start.character
-    locations = lsp_client.references(
-        pylspclient.lsp_structs.TextDocumentIdentifier(uri=uri),
-        pylspclient.lsp_structs.Position(line=line, character=character),
-        pylspclient.lsp_structs.ReferenceContext(),
-    )
-    print(
-        f"{symbol.name}, {symbol.range.start.line}, {symbol.range.start.character}, {[location.dict() for location in locations]}"
-    )
-    for child in symbol.children:
-        get_reference(lsp_client=lsp_client, symbol=child)
+def get_reference(
+    lsp_client: LspClient, symbol: Union[DocumnetSymbol, SymbolInformation], uri: str
+):
+    if isinstance(symbol, DocumnetSymbol):
+        line = symbol.range.start.line
+        character = symbol.range.start.character
+        locations = lsp_client.references(
+            pylspclient.lsp_structs.TextDocumentIdentifier(uri=uri),
+            pylspclient.lsp_structs.Position(line=line, character=character),
+            pylspclient.lsp_structs.ReferenceContext(includeDeclaration=True),
+        )
+        print(
+            f"{symbol.name}, {symbol.range.start.line}, {symbol.range.start.character}, {[location.dict() for location in locations]}"
+        )
+        for child in symbol.children:
+            get_reference(lsp_client=lsp_client, symbol=child, uri=uri)
+    else:
+        line = symbol.location.range.start.line
+        character = symbol.location.range.start.character
+        locations = lsp_client.references(
+            pylspclient.lsp_structs.TextDocumentIdentifier(uri=uri),
+            pylspclient.lsp_structs.Position(line=line, character=character),
+            pylspclient.lsp_structs.ReferenceContext(includeDeclaration=True),
+        )
+        print(
+            f"{symbol.name}, {line}, {character}, {[location.dict() for location in locations]}"
+        )
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="pylspclient example with clangd")
-    parser.add_argument(
-        "clangd_path",
-        type=str,
-        default="/usr/bin/clangd-6.0",
-        help="the clangd path",
-        nargs="?",
-    )
-    args = parser.parse_args()
-    intelephense = ["intelephense", "--stdio"]
-    phpls = [
-        "php",
-        PHP_LANGUAGE_SERVER
-        + "/vendor/felixfbecker/language-server/bin/php-language-server.php",
-    ]
-    p = subprocess.Popen(
-        intelephense,
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    read_pipe = ReadPipe(p.stderr)
-    read_pipe.start()
-    json_rpc_endpoint = pylspclient.JsonRpcEndpoint(p.stdin, p.stdout)
-    # To work with socket: sock_fd = sock.makefile()
-    lsp_endpoint = pylspclient.LspEndpoint(json_rpc_endpoint, timeout=99999999)
+def open_all_source_files(lsp_client: LspClient, root_dir: Path):
+    opened_files: Dict[str, TextDocumentItem] = {}
+    for file in root_dir.glob("**/*.php"):
+        file_path = str(file.absolute())
+        uri = "file://" + file_path
+        text = open(file_path, "r").read()
+        languageId = pylspclient.lsp_structs.LANGUAGE_IDENTIFIER.PHP
+        version = 1
+        documentItem = pylspclient.lsp_structs.TextDocumentItem(
+            uri=uri, languageId=languageId, version=version, text=text
+        )
+        lsp_client.didOpen(documentItem)
+        opened_files[file_path] = documentItem
+    return opened_files
 
-    lsp_client = pylspclient.LspClient(lsp_endpoint)
+
+def start_communication(lsp_client: LspClient, server_p: subprocess.Popen[bytes]):
     capabilities = {
         "textDocument": {
             "codeAction": {"dynamicRegistration": True},
@@ -171,6 +184,7 @@ if __name__ == "__main__":
             "typeDefinition": {"dynamicRegistration": True},
         },
         "workspace": {
+            "references": {"dynamicRegistration": True},
             "applyEdit": True,
             "configuration": True,
             "didChangeConfiguration": {"dynamicRegistration": True},
@@ -213,50 +227,85 @@ if __name__ == "__main__":
             "workspaceFolders": True,
         },
     }
-    root_uri = "file:///home/a-ohta/Buzz/"
+    root_uri = f"file:/{ROOT_DIR}"
     workspace_folders = [{"name": "python-lsp", "uri": root_uri}]
-    print("before initialized")
+    print("before initialized", file=stderr)
     print(
         lsp_client.initialize(
-            processId=p.pid,
+            processId=server_p.pid,
             rootPath=None,
             rootUri=root_uri,
             initializationOptions=None,
             capabilities=capabilities,
-            trace="off",
+            trace="verbose",
             workspaceFolders=workspace_folders,
-        )
+        ),
+        file=stderr,
     )
-    print("initializing...")
-    print(lsp_client.initialized())
-    print("after initialized")
-    sleep(5)
+    print("initializing...", file=stderr)
+    print(lsp_client.initialized(), file=stderr)
+    print("after initialized", file=stderr)
+    documents = open_all_source_files(lsp_client=lsp_client, root_dir=Path(ROOT_DIR))
+    files = set([document.uri for _, document in documents.items()])
+    for _ in range(FILE_PARSE_TIMEOUT_SEC):
+        if _DONE_FILES == files:
+            break
+        sleep(1)
+    else:
+        print("file parse timeout", file=stderr)
+        return
 
-    file_path = "/home/a-ohta/Buzz/lib/Client/Curl.php"
-    uri = "file://" + file_path
-    text = open(file_path, "r").read()
-    languageId = pylspclient.lsp_structs.LANGUAGE_IDENTIFIER.PHP
-    version = 1
-    documentItem = pylspclient.lsp_structs.TextDocumentItem(
-        uri=uri, languageId=languageId, version=version, text=text
-    )
-    lsp_client.didOpen(documentItem)
+    documentItem = documents[FILE_PATH]
     try:
         symbols = lsp_client.documentSymbol(documentItem)
         print(f"Get references for all symbols in file: {documentItem.uri}.")
         for symbol in symbols:
-            if isinstance(symbol, SymbolInformation):
-                print(
-                    f"{symbol.name}: {symbol.location.range.start.line}, {symbol.location.range.start.character}"
-                )
-                line = symbol.location.range.start.line
-                character = symbol.location.range.start.character
-            else:
-                get_reference(lsp_client, symbol)
+            get_reference(lsp_client, symbol, documentItem.uri)
     except pylspclient.lsp_structs.ResponseError as e:
         # documentSymbol is supported from version 8.
-        print(e)
-        print("Failed to document symbols")
+        print(e, file=stderr)
+        print("Failed to document symbols", file=stderr)
 
-    lsp_client.shutdown()
-    lsp_client.exit()
+
+def publishDiagnostics(arg: Dict[str, Any]):
+    uri = arg["uri"]
+    _DONE_FILES.add(uri)
+    print(f"Parse end: {uri}", file=stderr)
+
+
+@click.command()
+@click.argument("server", type=click.Choice(["phpls", "intelephense"]))
+def main(server: str):
+    intelephense = ["intelephense", "--stdio"]
+    phpls = [
+        "php",
+        PHP_LANGUAGE_SERVER
+        + "/vendor/felixfbecker/language-server/bin/php-language-server.php",
+    ]
+    p = subprocess.Popen(
+        phpls if server == "phpls" else intelephense,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    assert p.stderr
+    read_pipe = ReadPipe(p.stderr)
+    read_pipe.start()
+    json_rpc_endpoint = pylspclient.JsonRpcEndpoint(p.stdin, p.stdout)
+    # To work with socket: sock_fd = sock.makefile()
+    lsp_endpoint = pylspclient.LspEndpoint(
+        json_rpc_endpoint,
+        timeout=99999999,
+        notify_callbacks={"textDocument/publishDiagnostics": publishDiagnostics},
+    )
+
+    lsp_client = pylspclient.LspClient(lsp_endpoint)
+    try:
+        start_communication(lsp_client=lsp_client, server_p=p)
+    finally:
+        lsp_client.shutdown()
+        lsp_client.exit()
+
+
+if __name__ == "__main__":
+    main()

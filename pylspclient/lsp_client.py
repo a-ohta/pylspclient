@@ -1,4 +1,6 @@
+import uuid
 from typing import Any, List, Optional, Union
+
 from pylspclient import lsp_structs
 
 
@@ -83,7 +85,7 @@ class LspClient(object):
         """
         self.lsp_endpoint.send_notification("exit")
 
-    def didOpen(self, textDocument):
+    def didOpen(self, textDocument: lsp_structs.TextDocumentItem):
         """
         The document open notification is sent from the client to the server to signal newly opened text documents. The document's truth is
         now managed by the client and the server must not try to read the document's truth using the document's uri. Open in this sense
@@ -119,7 +121,7 @@ class LspClient(object):
         )
 
     def documentSymbol(
-        self, textDocument
+        self, textDocument: lsp_structs.TextDocumentItem
     ) -> List[Union[lsp_structs.SymbolInformation, lsp_structs.DocumnetSymbol]]:
         """
         The document symbol request is sent from the client to the server to return a flat list of all symbols found in a given text document.
@@ -248,7 +250,12 @@ class LspClient(object):
             for l in result_dict
         ]
 
-    def references(self, textDocument, position, context):
+    def references(
+        self,
+        textDocument: lsp_structs.TextDocumentIdentifier,
+        position: lsp_structs.Position,
+        context: lsp_structs.ReferenceContext,
+    ) -> Union[List[lsp_structs.Location], lsp_structs.Location]:
         """
         The go to definition request is sent from the client to the server to resolve the declaration location of a
         symbol at a given text document position.
@@ -264,6 +271,7 @@ class LspClient(object):
             textDocument=textDocument,
             position=position,
             context=context,
+            workDoneToken=str(uuid.uuid4()),
         )
         if "uri" in result_dict:
             return lsp_structs.Location(**result_dict)
