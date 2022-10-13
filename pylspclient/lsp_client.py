@@ -265,7 +265,6 @@ class LspClient(object):
             position=position,
             context=context,
         )
-        print(result_dict)
         if "uri" in result_dict:
             return lsp_structs.Location(**result_dict)
 

@@ -3,8 +3,9 @@ import pylspclient
 import subprocess
 import threading
 import argparse
+from pylspclient.lsp_client import LspClient
 
-from pylspclient.lsp_structs import SymbolInformation
+from pylspclient.lsp_structs import DocumnetSymbol, SymbolInformation
 
 PHP_LANGUAGE_SERVER = "/home/a-ohta/php-language-server"
 
@@ -19,6 +20,21 @@ class ReadPipe(threading.Thread):
         while line:
             print(line)
             line = self.pipe.readline().decode("utf-8")
+
+
+def get_reference(lsp_client: LspClient, symbol: DocumnetSymbol):
+    line = symbol.range.start.line
+    character = symbol.range.start.character
+    locations = lsp_client.references(
+        pylspclient.lsp_structs.TextDocumentIdentifier(uri=uri),
+        pylspclient.lsp_structs.Position(line=line, character=character),
+        pylspclient.lsp_structs.ReferenceContext(),
+    )
+    print(
+        f"{symbol.name}, {symbol.range.start.line}, {symbol.range.start.character}, {[location.dict() for location in locations]}"
+    )
+    for child in symbol.children:
+        get_reference(lsp_client=lsp_client, symbol=child)
 
 
 if __name__ == "__main__":
@@ -221,15 +237,14 @@ if __name__ == "__main__":
     text = open(file_path, "r").read()
     languageId = pylspclient.lsp_structs.LANGUAGE_IDENTIFIER.PHP
     version = 1
-    lsp_client.didOpen(
-        pylspclient.lsp_structs.TextDocumentItem(
-            uri=uri, languageId=languageId, version=version, text=text
-        )
+    documentItem = pylspclient.lsp_structs.TextDocumentItem(
+        uri=uri, languageId=languageId, version=version, text=text
     )
+    lsp_client.didOpen(documentItem)
     try:
-        symbols = lsp_client.workspaceSymbol()
+        symbols = lsp_client.documentSymbol(documentItem)
+        print(f"Get references for all symbols in file: {documentItem.uri}.")
         for symbol in symbols:
-            print("print symbol name")
             if isinstance(symbol, SymbolInformation):
                 print(
                     f"{symbol.name}: {symbol.location.range.start.line}, {symbol.location.range.start.character}"
@@ -237,16 +252,7 @@ if __name__ == "__main__":
                 line = symbol.location.range.start.line
                 character = symbol.location.range.start.character
             else:
-                print(
-                    f"{symbol.name}: {symbol.range.start.line}, {symbol.range.start.character}"
-                )
-                line = symbol.range.start.line
-                character = symbol.range.start.character
-            lsp_client.references(
-                pylspclient.lsp_structs.TextDocumentIdentifier(uri),
-                pylspclient.lsp_structs.Position(line, character),
-                pylspclient.lsp_structs.ReferenceContext(),
-            )
+                get_reference(lsp_client, symbol)
     except pylspclient.lsp_structs.ResponseError as e:
         # documentSymbol is supported from version 8.
         print(e)
