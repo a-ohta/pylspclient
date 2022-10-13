@@ -39,18 +39,30 @@ class ReadPipe(threading.Thread):
 
 
 def print_reference(
-    uri: str, line: int, character: int, name: str, locations: List[Location]
+    uri: str,
+    line: int,
+    character: int,
+    name: str,
+    locations: List[Location],
+    documents: Dict[str, TextDocumentItem],
 ):
     if not locations:
         print(f'"{uri}", {line}, {character}, "{name}"')
     for location in locations:
+        document = documents[location.uri[len("file://") :]]
+        loc_line = location.range.start.line
+        loc_chracter = location.range.start.character
+        line_str = document.text.splitlines()[loc_line]
         print(
-            f'"{uri}", {line}, {character}, "{name}", "{location.uri}", {location.range.start.line}, {location.range.start.character}'
+            f'"{uri}", {line}, {character}, "{name}", "{location.uri}", {loc_line}, {loc_chracter}, `{line_str}`'
         )
 
 
 def get_reference(
-    lsp_client: LspClient, symbol: Union[DocumnetSymbol, SymbolInformation], uri: str
+    lsp_client: LspClient,
+    symbol: Union[DocumnetSymbol, SymbolInformation],
+    uri: str,
+    documents: Dict[str, TextDocumentItem],
 ):
     if isinstance(symbol, DocumnetSymbol):
         line = symbol.selectionRange.start.line
@@ -60,9 +72,11 @@ def get_reference(
             pylspclient.lsp_structs.Position(line=line, character=character),
             pylspclient.lsp_structs.ReferenceContext(includeDeclaration=True),
         )
-        print_reference(uri, line, character, symbol.name, locations)
+        print_reference(uri, line, character, symbol.name, locations, documents)
         for child in symbol.children:
-            get_reference(lsp_client=lsp_client, symbol=child, uri=uri)
+            get_reference(
+                lsp_client=lsp_client, symbol=child, uri=uri, documents=documents
+            )
     else:
         line = symbol.location.range.start.line + 3
         character = symbol.location.range.start.character
@@ -71,7 +85,7 @@ def get_reference(
             pylspclient.lsp_structs.Position(line=line, character=character),
             pylspclient.lsp_structs.ReferenceContext(includeDeclaration=True),
         )
-        print_reference(uri, line, character, symbol.name, locations)
+        print_reference(uri, line, character, symbol.name, locations, documents)
 
 
 def open_all_source_files(lsp_client: LspClient, root_dir: Path):
@@ -275,7 +289,7 @@ def start_communication(lsp_client: LspClient, server_p: subprocess.Popen[bytes]
             f"Get references for all symbols in file: {documentItem.uri}.", file=stderr
         )
         for symbol in symbols:
-            get_reference(lsp_client, symbol, documentItem.uri)
+            get_reference(lsp_client, symbol, documentItem.uri, documents)
     except pylspclient.lsp_structs.ResponseError as e:
         # documentSymbol is supported from version 8.
         print(e, file=stderr)
