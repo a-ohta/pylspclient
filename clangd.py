@@ -3,19 +3,24 @@ import threading
 from pathlib import Path
 from sys import stderr
 from time import sleep
-from typing import IO, Any, Dict, Set, Union
+from typing import IO, Any, Dict, List, Set, Union
 
 import click
 
 import pylspclient
 from pylspclient.lsp_client import LspClient
-from pylspclient.lsp_structs import DocumnetSymbol, SymbolInformation, TextDocumentItem
+from pylspclient.lsp_structs import (
+    DocumnetSymbol,
+    Location,
+    SymbolInformation,
+    TextDocumentItem,
+)
 
 PHP_LANGUAGE_SERVER = "/home/a-ohta/php-language-server"
 ## root directory for diagnose
 ROOT_DIR = "/home/a-ohta/Buzz/"
 ## target file for get references
-FILE_PATH = "/home/a-ohta/Buzz/lib/Client/BuzzClientInterface.php"
+FILE_PATH = "/home/a-ohta/Buzz/lib/Client/Curl.php"
 
 FILE_PARSE_TIMEOUT_SEC = 30
 _DONE_FILES: Set[str] = set()
@@ -33,33 +38,40 @@ class ReadPipe(threading.Thread):
             line = self.pipe.readline().decode("utf-8")
 
 
+def print_reference(
+    uri: str, line: int, character: int, name: str, locations: List[Location]
+):
+    if not locations:
+        print(f'"{uri}", {line}, {character}, "{name}"')
+    for location in locations:
+        print(
+            f'"{uri}", {line}, {character}, "{name}", "{location.uri}", {location.range.start.line}, {location.range.start.character}'
+        )
+
+
 def get_reference(
     lsp_client: LspClient, symbol: Union[DocumnetSymbol, SymbolInformation], uri: str
 ):
     if isinstance(symbol, DocumnetSymbol):
-        line = symbol.range.start.line
-        character = symbol.range.start.character
+        line = symbol.selectionRange.start.line
+        character = symbol.selectionRange.start.character
         locations = lsp_client.references(
             pylspclient.lsp_structs.TextDocumentIdentifier(uri=uri),
             pylspclient.lsp_structs.Position(line=line, character=character),
             pylspclient.lsp_structs.ReferenceContext(includeDeclaration=True),
         )
-        print(
-            f"{symbol.name}, {symbol.range.start.line}, {symbol.range.start.character}, {[location.dict() for location in locations]}"
-        )
+        print_reference(uri, line, character, symbol.name, locations)
         for child in symbol.children:
             get_reference(lsp_client=lsp_client, symbol=child, uri=uri)
     else:
-        line = symbol.location.range.start.line
+        line = symbol.location.range.start.line + 3
         character = symbol.location.range.start.character
         locations = lsp_client.references(
             pylspclient.lsp_structs.TextDocumentIdentifier(uri=uri),
             pylspclient.lsp_structs.Position(line=line, character=character),
             pylspclient.lsp_structs.ReferenceContext(includeDeclaration=True),
         )
-        print(
-            f"{symbol.name}, {line}, {character}, {[location.dict() for location in locations]}"
-        )
+        print_reference(uri, line, character, symbol.name, locations)
 
 
 def open_all_source_files(lsp_client: LspClient, root_dir: Path):
@@ -157,6 +169,7 @@ def start_communication(lsp_client: LspClient, server_p: subprocess.Popen[bytes]
                         26,
                     ]
                 },
+                "hierarchicalDocumentSymbolSupport": True,
             },
             "formatting": {"dynamicRegistration": True},
             "hover": {
@@ -258,7 +271,9 @@ def start_communication(lsp_client: LspClient, server_p: subprocess.Popen[bytes]
     documentItem = documents[FILE_PATH]
     try:
         symbols = lsp_client.documentSymbol(documentItem)
-        print(f"Get references for all symbols in file: {documentItem.uri}.")
+        print(
+            f"Get references for all symbols in file: {documentItem.uri}.", file=stderr
+        )
         for symbol in symbols:
             get_reference(lsp_client, symbol, documentItem.uri)
     except pylspclient.lsp_structs.ResponseError as e:
