@@ -1,7 +1,10 @@
+from time import sleep
 import pylspclient
 import subprocess
 import threading
 import argparse
+
+from pylspclient.lsp_structs import SymbolInformation
 
 PHP_LANGUAGE_SERVER = "/home/a-ohta/php-language-server"
 
@@ -12,165 +15,241 @@ class ReadPipe(threading.Thread):
         self.pipe = pipe
 
     def run(self):
-        line = self.pipe.readline().decode('utf-8')
+        line = self.pipe.readline().decode("utf-8")
         while line:
             print(line)
-            line = self.pipe.readline().decode('utf-8')
+            line = self.pipe.readline().decode("utf-8")
+
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='pylspclient example with clangd')
-    parser.add_argument('clangd_path', type=str, default="/usr/bin/clangd-6.0", 
-                    help='the clangd path', nargs="?")
+    parser = argparse.ArgumentParser(description="pylspclient example with clangd")
+    parser.add_argument(
+        "clangd_path",
+        type=str,
+        default="/usr/bin/clangd-6.0",
+        help="the clangd path",
+        nargs="?",
+    )
     args = parser.parse_args()
-    p = subprocess.Popen(["php", PHP_LANGUAGE_SERVER + "/vendor/felixfbecker/language-server/bin/php-language-server.php"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    intelephense = ["intelephense", "--stdio"]
+    phpls = [
+        "php",
+        PHP_LANGUAGE_SERVER
+        + "/vendor/felixfbecker/language-server/bin/php-language-server.php",
+    ]
+    p = subprocess.Popen(
+        intelephense,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
     read_pipe = ReadPipe(p.stderr)
     read_pipe.start()
     json_rpc_endpoint = pylspclient.JsonRpcEndpoint(p.stdin, p.stdout)
     # To work with socket: sock_fd = sock.makefile()
-    lsp_endpoint = pylspclient.LspEndpoint(json_rpc_endpoint)
+    lsp_endpoint = pylspclient.LspEndpoint(json_rpc_endpoint, timeout=99999999)
 
     lsp_client = pylspclient.LspClient(lsp_endpoint)
-    capabilities = {'textDocument': {'codeAction': {'dynamicRegistration': True},
-    'codeLens': {'dynamicRegistration': True},
-    'colorProvider': {'dynamicRegistration': True},
-    'completion': {'completionItem': {'commitCharactersSupport': True,
-        'documentationFormat': ['markdown', 'plaintext'],
-        'snippetSupport': True},
-    'completionItemKind': {'valueSet': [1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        7,
-        8,
-        9,
-        10,
-        11,
-        12,
-        13,
-        14,
-        15,
-        16,
-        17,
-        18,
-        19,
-        20,
-        21,
-        22,
-        23,
-        24,
-        25]},
-    'contextSupport': True,
-    'dynamicRegistration': True},
-    'definition': {'dynamicRegistration': True},
-    'documentHighlight': {'dynamicRegistration': True},
-    'documentLink': {'dynamicRegistration': True},
-    'documentSymbol': {'dynamicRegistration': True,
-    'symbolKind': {'valueSet': [1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        7,
-        8,
-        9,
-        10,
-        11,
-        12,
-        13,
-        14,
-        15,
-        16,
-        17,
-        18,
-        19,
-        20,
-        21,
-        22,
-        23,
-        24,
-        25,
-        26]}},
-    'formatting': {'dynamicRegistration': True},
-    'hover': {'contentFormat': ['markdown', 'plaintext'],
-    'dynamicRegistration': True},
-    'implementation': {'dynamicRegistration': True},
-    'onTypeFormatting': {'dynamicRegistration': True},
-    'publishDiagnostics': {'relatedInformation': True},
-    'rangeFormatting': {'dynamicRegistration': True},
-    'references': {'dynamicRegistration': True},
-    'rename': {'dynamicRegistration': True},
-    'signatureHelp': {'dynamicRegistration': True,
-    'signatureInformation': {'documentationFormat': ['markdown', 'plaintext']}},
-    'synchronization': {'didSave': True,
-    'dynamicRegistration': True,
-    'willSave': True,
-    'willSaveWaitUntil': True},
-    'typeDefinition': {'dynamicRegistration': True}},
-    'workspace': {'applyEdit': True,
-    'configuration': True,
-    'didChangeConfiguration': {'dynamicRegistration': True},
-    'didChangeWatchedFiles': {'dynamicRegistration': True},
-    'executeCommand': {'dynamicRegistration': True},
-    'symbol': {'dynamicRegistration': True,
-    'symbolKind': {'valueSet': [1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        7,
-        8,
-        9,
-        10,
-        11,
-        12,
-        13,
-        14,
-        15,
-        16,
-        17,
-        18,
-        19,
-        20,
-        21,
-        22,
-        23,
-        24,
-        25,
-        26]}},'workspaceEdit': {'documentChanges': True},
-    'workspaceFolders': True}}
-    root_uri = 'file:///home/a-ohta/Buzz/'
-    workspace_folders = [{'name': 'python-lsp', 'uri': root_uri}]
+    capabilities = {
+        "textDocument": {
+            "codeAction": {"dynamicRegistration": True},
+            "codeLens": {"dynamicRegistration": True},
+            "colorProvider": {"dynamicRegistration": True},
+            "completion": {
+                "completionItem": {
+                    "commitCharactersSupport": True,
+                    "documentationFormat": ["markdown", "plaintext"],
+                    "snippetSupport": True,
+                },
+                "completionItemKind": {
+                    "valueSet": [
+                        1,
+                        2,
+                        3,
+                        4,
+                        5,
+                        6,
+                        7,
+                        8,
+                        9,
+                        10,
+                        11,
+                        12,
+                        13,
+                        14,
+                        15,
+                        16,
+                        17,
+                        18,
+                        19,
+                        20,
+                        21,
+                        22,
+                        23,
+                        24,
+                        25,
+                    ]
+                },
+                "contextSupport": True,
+                "dynamicRegistration": True,
+            },
+            "definition": {"dynamicRegistration": True},
+            "documentHighlight": {"dynamicRegistration": True},
+            "documentLink": {"dynamicRegistration": True},
+            "documentSymbol": {
+                "dynamicRegistration": True,
+                "symbolKind": {
+                    "valueSet": [
+                        1,
+                        2,
+                        3,
+                        4,
+                        5,
+                        6,
+                        7,
+                        8,
+                        9,
+                        10,
+                        11,
+                        12,
+                        13,
+                        14,
+                        15,
+                        16,
+                        17,
+                        18,
+                        19,
+                        20,
+                        21,
+                        22,
+                        23,
+                        24,
+                        25,
+                        26,
+                    ]
+                },
+            },
+            "formatting": {"dynamicRegistration": True},
+            "hover": {
+                "contentFormat": ["markdown", "plaintext"],
+                "dynamicRegistration": True,
+            },
+            "implementation": {"dynamicRegistration": True},
+            "onTypeFormatting": {"dynamicRegistration": True},
+            "publishDiagnostics": {"relatedInformation": True},
+            "rangeFormatting": {"dynamicRegistration": True},
+            "references": {"dynamicRegistration": True},
+            "rename": {"dynamicRegistration": True},
+            "signatureHelp": {
+                "dynamicRegistration": True,
+                "signatureInformation": {
+                    "documentationFormat": ["markdown", "plaintext"]
+                },
+            },
+            "synchronization": {
+                "didSave": True,
+                "dynamicRegistration": True,
+                "willSave": True,
+                "willSaveWaitUntil": True,
+            },
+            "typeDefinition": {"dynamicRegistration": True},
+        },
+        "workspace": {
+            "applyEdit": True,
+            "configuration": True,
+            "didChangeConfiguration": {"dynamicRegistration": True},
+            "didChangeWatchedFiles": {"dynamicRegistration": True},
+            "executeCommand": {"dynamicRegistration": True},
+            "symbol": {
+                "dynamicRegistration": True,
+                "symbolKind": {
+                    "valueSet": [
+                        1,
+                        2,
+                        3,
+                        4,
+                        5,
+                        6,
+                        7,
+                        8,
+                        9,
+                        10,
+                        11,
+                        12,
+                        13,
+                        14,
+                        15,
+                        16,
+                        17,
+                        18,
+                        19,
+                        20,
+                        21,
+                        22,
+                        23,
+                        24,
+                        25,
+                        26,
+                    ]
+                },
+            },
+            "workspaceEdit": {"documentChanges": True},
+            "workspaceFolders": True,
+        },
+    }
+    root_uri = "file:///home/a-ohta/Buzz/"
+    workspace_folders = [{"name": "python-lsp", "uri": root_uri}]
     print("before initialized")
-    print(lsp_client.initialize(p.pid, None, root_uri, None, capabilities, "off", workspace_folders))
+    print(
+        lsp_client.initialize(
+            processId=p.pid,
+            rootPath=None,
+            rootUri=root_uri,
+            initializationOptions=None,
+            capabilities=capabilities,
+            trace="off",
+            workspaceFolders=workspace_folders,
+        )
+    )
     print("initializing...")
     print(lsp_client.initialized())
     print("after initialized")
+    sleep(5)
 
     file_path = "/home/a-ohta/Buzz/lib/Client/Curl.php"
     uri = "file://" + file_path
     text = open(file_path, "r").read()
     languageId = pylspclient.lsp_structs.LANGUAGE_IDENTIFIER.PHP
     version = 1
-    lsp_client.didOpen(pylspclient.lsp_structs.TextDocumentItem(uri, languageId, version, text))
+    lsp_client.didOpen(
+        pylspclient.lsp_structs.TextDocumentItem(
+            uri=uri, languageId=languageId, version=version, text=text
+        )
+    )
     try:
-        symbols = lsp_client.documentSymbol(pylspclient.lsp_structs.TextDocumentIdentifier(uri))
+        symbols = lsp_client.workspaceSymbol()
         for symbol in symbols:
             print("print symbol name")
-            print(f"{symbol.name}: {symbol.location.range.start.line}, {symbol.location.range.start.character}")
-            line = symbol.location.range.start.line
-            character = symbol.location.range.start.character
-            print(f"definition {symbol.name}")
-            lsp_client.definition(pylspclient.lsp_structs.TextDocumentIdentifier(uri), pylspclient.lsp_structs.Position(line, character))
-            print(f"completion {symbol.name}")
-            lsp_client.completion(pylspclient.lsp_structs.TextDocumentIdentifier(uri), pylspclient.lsp_structs.Position(line, character), pylspclient.lsp_structs.CompletionContext(pylspclient.lsp_structs.CompletionTriggerKind.Invoked))
-            print(f"references {symbol.name}")
-            lsp_client.references(pylspclient.lsp_structs.TextDocumentIdentifier(uri), pylspclient.lsp_structs.Position(line, character), pylspclient.lsp_structs.ReferenceContext())
-    except pylspclient.lsp_structs.ResponseError:
+            if isinstance(symbol, SymbolInformation):
+                print(
+                    f"{symbol.name}: {symbol.location.range.start.line}, {symbol.location.range.start.character}"
+                )
+                line = symbol.location.range.start.line
+                character = symbol.location.range.start.character
+            else:
+                print(
+                    f"{symbol.name}: {symbol.range.start.line}, {symbol.range.start.character}"
+                )
+                line = symbol.range.start.line
+                character = symbol.range.start.character
+            lsp_client.references(
+                pylspclient.lsp_structs.TextDocumentIdentifier(uri),
+                pylspclient.lsp_structs.Position(line, character),
+                pylspclient.lsp_structs.ReferenceContext(),
+            )
+    except pylspclient.lsp_structs.ResponseError as e:
         # documentSymbol is supported from version 8.
+        print(e)
         print("Failed to document symbols")
 
     lsp_client.shutdown()
