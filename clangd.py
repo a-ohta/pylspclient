@@ -43,12 +43,17 @@ def print_reference(
     line: int,
     character: int,
     name: str,
-    locations: List[Location],
+    locations: Union[List[Location], Location],
     documents: Dict[str, TextDocumentItem],
 ):
-    if not locations:
+    _locations: List[Location] = []
+    if isinstance(locations, Location):
+        _locations.append(locations)
+    else:
+        _locations = locations
+    if not _locations:
         print(f'"{uri}", {line}, {character}, "{name}"')
-    for location in locations:
+    for location in _locations:
         document = documents[location.uri[len("file://") :]]
         loc_line = location.range.start.line
         loc_chracter = location.range.start.character
@@ -317,7 +322,7 @@ def main(server: str):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    assert p.stderr
+    assert p.stderr and p.stdin and p.stdout
     read_pipe = ReadPipe(p.stderr)
     read_pipe.start()
     json_rpc_endpoint = pylspclient.JsonRpcEndpoint(p.stdin, p.stdout)

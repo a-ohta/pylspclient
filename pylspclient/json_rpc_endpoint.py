@@ -1,8 +1,8 @@
-from __future__ import print_function
 import json
-import re
-from pylspclient import lsp_structs
 import threading
+from typing import IO, Any, Dict, Union
+
+from pylspclient import lsp_structs
 
 JSON_RPC_REQ_FORMAT = "Content-Length: {json_string_len}\r\n\r\n{json_string}"
 LEN_HEADER = "Content-Length: "
@@ -17,7 +17,7 @@ class MyEncoder(json.JSONEncoder):
     Encodes an object in JSON
     """
 
-    def default(self, o):  # pylint: disable=E0202
+    def default(self, o: Any):  # pylint: disable=E0202
         return o.__dict__
 
 
@@ -27,14 +27,14 @@ class JsonRpcEndpoint(object):
     protocol. More information can be found: https://www.jsonrpc.org/
     """
 
-    def __init__(self, stdin, stdout):
+    def __init__(self, stdin: IO[bytes], stdout: IO[bytes]):
         self.stdin = stdin
         self.stdout = stdout
         self.read_lock = threading.Lock()
         self.write_lock = threading.Lock()
 
     @staticmethod
-    def __add_header(json_string):
+    def __add_header(json_string: str):
         """
         Adds a header for the given json string
 
@@ -45,7 +45,7 @@ class JsonRpcEndpoint(object):
             json_string_len=len(json_string), json_string=json_string
         )
 
-    def send_request(self, message):
+    def send_request(self, message: Dict[str, Union[str, int, None]]):
         """
         Sends the given message.
 

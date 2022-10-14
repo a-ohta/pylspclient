@@ -1,7 +1,7 @@
 import enum
-from typing import Any, Dict, List, Optional, Type, TypeVar
+from typing import Any, List, Optional, Type, TypeVar
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 T = TypeVar("T")
 
@@ -100,57 +100,27 @@ class VersionedTextDocumentIdentifier(TextDocumentIdentifier):
     An identifier to denote a specific version of a text document.
     """
 
-    def __init__(self, uri, version):
-        """
-        Constructs a new TextDocumentIdentifier instance.
-
-        :param DocumentUri uri: The text document's URI.
-        :param int version: The version number of this document. If a versioned
-            text document identifier is sent from the server to the client and
-            the file is not open in the editor (the server has not received an
-            open notification before) the server can send `null` to indicate
-            that the version is known and the content on disk is the truth (as
-            speced with document content ownership).
-        The version number of a document will increase after each change, including
-        undo/redo. The number doesn't need to be consecutive.
-        """
-        super(VersionedTextDocumentIdentifier, self).__init__(uri)
-        self.version = version
+    version: int
 
 
-class TextDocumentContentChangeEvent(object):
+class TextDocumentContentChangeEvent(BaseModel):
     """
     An event describing a change to a text document. If range and rangeLength are omitted
     the new text is considered to be the full content of the document.
     """
 
-    def __init__(self, range, rangeLength, text):
-        """
-        Constructs a new TextDocumentContentChangeEvent instance.
-
-        :param Range range: The range of the document that changed.
-        :param int rangeLength: The length of the range that got replaced.
-        :param str text: The new text of the range/document.
-        """
-        self.range = range
-        self.rangeLength = rangeLength
-        self.text = text
+    range: Range
+    rangeLength: int
+    text: str
 
 
-class TextDocumentPositionParams(object):
+class TextDocumentPositionParams(BaseModel):
     """
     A parameter literal used in requests to pass a text document and a position inside that document.
     """
 
-    def __init__(self, textDocument, position):
-        """
-        Constructs a new TextDocumentPositionParams instance.
-
-        :param TextDocumentIdentifier textDocument: The text document.
-        :param Position position: The position inside the text document.
-        """
-        self.textDocument = textDocument
-        self.position = position
+    textDocument: TextDocumentIdentifier
+    position: Position
 
 
 class LANGUAGE_IDENTIFIER(object):
@@ -234,278 +204,118 @@ class SymbolKind(enum.Enum):
     TypeParameter = 26
 
 
-class SymbolInformation(object):
+class SymbolInformation(BaseModel):
     """
     Represents information about programming constructs like variables, classes, interfaces etc.
     """
 
-    def __init__(
-        self,
-        name: str,
-        kind: int,
-        location: Location,
-        containerName: Optional[str] = None,
-        deprecated: bool = False,
-    ):
-        """
-        Constructs a new SymbolInformation instance.
-
-        :param str name: The name of this symbol.
-        :param int kind: The kind of this symbol.
-        :param bool Location: The location of this symbol. The location's range is used by a tool
-                                to reveal the location in the editor. If the symbol is selected in the
-                                tool the range's start information is used to position the cursor. So
-                                the range usually spans more then the actual symbol's name and does
-                                normally include things like visibility modifiers.
-
-                                The range doesn't have to denote a node range in the sense of a abstract
-                                syntax tree. It can therefore not be used to re-construct a hierarchy of
-                                the symbols.
-        :param str containerName: The name of the symbol containing this symbol. This information is for
-                                    user interface purposes (e.g. to render a qualifier in the user interface
-                                    if necessary). It can't be used to re-infer a hierarchy for the document
-                                    symbols.
-        :param bool deprecated: Indicates if this symbol is deprecated.
-        """
-        self.name = name
-        self.kind = SymbolKind(kind)
-        self.deprecated = deprecated
-        self.location = to_type(location, Location)
-        self.containerName = containerName
+    name: str
+    kind: SymbolKind
+    location: Location
+    containerName: Optional[str] = None
+    deprecated: bool = False
 
 
-class DocumnetSymbol(object):
+class DocumnetSymbol(BaseModel):
     """
     Represents information about programming constructs like variables, classes, interfaces etc.
     """
 
-    children: List["DocumnetSymbol"]
-
-    def __init__(
-        self,
-        name: str,
-        kind: int,
-        range: Range,
-        selectionRange: Range,
-        children: Optional[List["DocumnetSymbol"]] = None,
-        containerName: Optional[str] = None,
-        deprecated: bool = False,
-    ):
-        """
-        Constructs a new SymbolInformation instance.
-
-        :param str name: The name of this symbol.
-        :param int kind: The kind of this symbol.
-        :param bool Location: The location of this symbol. The location's range is used by a tool
-                                to reveal the location in the editor. If the symbol is selected in the
-                                tool the range's start information is used to position the cursor. So
-                                the range usually spans more then the actual symbol's name and does
-                                normally include things like visibility modifiers.
-
-                                The range doesn't have to denote a node range in the sense of a abstract
-                                syntax tree. It can therefore not be used to re-construct a hierarchy of
-                                the symbols.
-        :param str containerName: The name of the symbol containing this symbol. This information is for
-                                    user interface purposes (e.g. to render a qualifier in the user interface
-                                    if necessary). It can't be used to re-infer a hierarchy for the document
-                                    symbols.
-        :param bool deprecated: Indicates if this symbol is deprecated.
-        """
-        self.name = name
-        self.kind = SymbolKind(kind)
-        self.deprecated = deprecated
-        self.range = to_type(range, Range)
-        self.selectionRange = to_type(selectionRange, Range)
-        self.containerName = containerName
-        self.children = []
-        if not children:
-            return
-        for child in children:
-            self.children.append(to_type(child, DocumnetSymbol))
+    name: str
+    kind: SymbolKind
+    range: Range
+    selectionRange: Range
+    children: List["DocumnetSymbol"] = Field(default_factory=list)
+    containerName: Optional[str] = None
+    deprecated: bool = False
 
 
-class ParameterInformation(object):
+class ParameterInformation(BaseModel):
     """
     Represents a parameter of a callable-signature. A parameter can
     have a label and a doc-comment.
     """
 
-    def __init__(self, label, documentation=""):
-        """
-        Constructs a new ParameterInformation instance.
-
-        :param str label: The label of this parameter. Will be shown in the UI.
-        :param str documentation: The human-readable doc-comment of this parameter. Will be shown in the UI but can be omitted.
-        """
-        self.label = label
-        self.documentation = documentation
+    label: str
+    documentation: str = Field("")
 
 
-class SignatureInformation(object):
+class SignatureInformation(BaseModel):
     """
     Represents the signature of something callable. A signature
     can have a label, like a function-name, a doc-comment, and
     a set of parameters.
     """
 
-    def __init__(self, label, documentation="", parameters=[]):
-        """
-        Constructs a new SignatureInformation instance.
-
-        :param str label: The label of this signature. Will be shown in the UI.
-        :param str documentation: The human-readable doc-comment of this signature. Will be shown in the UI but can be omitted.
-        :param ParameterInformation[] parameters: The parameters of this signature.
-        """
-        self.label = label
-        self.documentation = documentation
-        self.parameters = [
-            to_type(parameter, ParameterInformation) for parameter in parameters
-        ]
+    label: str
+    documentation: str = Field("")
+    parameters: List[ParameterInformation] = Field(default_factory=list)
 
 
-class SignatureHelp(object):
+class SignatureHelp(BaseModel):
     """
     Signature help represents the signature of something
     callable. There can be multiple signature but only one
     active and only one active parameter.
     """
 
-    def __init__(self, signatures, activeSignature=0, activeParameter=0):
-        """
-        Constructs a new SignatureHelp instance.
-
-        :param SignatureInformation[] signatures: One or more signatures.
-        :param int activeSignature:
-        :param int activeParameter:
-        """
-        self.signatures = [
-            to_type(signature, SignatureInformation) for signature in signatures
-        ]
-        self.activeSignature = activeSignature
-        self.activeParameter = activeParameter
+    signatures: List[SignatureInformation]
+    activeSignature: int = Field(0)
+    activeParameter: int = Field(0)
 
 
-class CompletionTriggerKind(object):
+class CompletionTriggerKind(enum.Enum):
     Invoked = 1
     TriggerCharacter = 2
     TriggerForIncompleteCompletions = 3
 
 
-class CompletionContext(object):
+class CompletionContext(BaseModel):
     """
     Contains additional information about the context in which a completion request is triggered.
     """
 
-    def __init__(self, triggerKind, triggerCharacter=None):
-        """
-        Constructs a new CompletionContext instance.
-
-        :param CompletionTriggerKind triggerKind: How the completion was triggered.
-        :param str triggerCharacter: The trigger character (a single character) that has trigger code complete.
-                                        Is undefined if `triggerKind !== CompletionTriggerKind.TriggerCharacter`
-        """
-        self.triggerKind = triggerKind
-        if triggerCharacter:
-            self.triggerCharacter = triggerCharacter
+    triggerKind: CompletionTriggerKind
+    triggerCharacter: Optional[str] = Field(None)
 
 
-class ReferenceContext:
-    def __init__(self, includeDeclaration: bool = False):
-        self.includeDeclaration = includeDeclaration
+class ReferenceContext(BaseModel):
+    includeDeclaration: bool = Field(False)
 
 
-class TextEdit(object):
+class TextEdit(BaseModel):
     """
     A textual edit applicable to a text document.
     """
 
-    def __init__(self, range, newText):
-        """
-        :param Range range: The range of the text document to be manipulated. To insert
-                            text into a document create a range where start === end.
-        :param str newText: The string to be inserted. For delete operations use an empty string.
-        """
-        self.range = range
-        self.newText = newText
+    range: Range
+    newText: str
 
 
-class InsertTextFormat(object):
+class InsertTextFormat(enum.Enum):
     PlainText = 1
     Snippet = 2
 
 
-class CompletionItem(object):
+class CompletionItem(BaseModel):
     """ """
 
-    def __init__(
-        self,
-        label,
-        kind=None,
-        detail=None,
-        documentation=None,
-        deprecated=None,
-        presented=None,
-        sortText=None,
-        filterText=None,
-        insertText=None,
-        insertTextFormat=None,
-        textEdit=None,
-        additionalTextEdits=None,
-        commitCharacters=None,
-        command=None,
-        data=None,
-        score=0.0,
-    ):
-        """
-        :param str label: The label of this completion item. By default also the text that is inserted when selecting
-                        this completion.
-        :param int kind: The kind of this completion item. Based of the kind an icon is chosen by the editor.
-        :param str detail:  A human-readable string with additional information about this item, like type or symbol information.
-        :param tr ocumentation: A human-readable string that represents a doc-comment.
-        :param bool deprecated: Indicates if this item is deprecated.
-        :param bool presented: Select this item when showing. Note: that only one completion item can be selected and that the
-                                tool / client decides which item that is. The rule is that the first item of those that match best is selected.
-        :param str sortText: A string that should be used when comparing this item with other items. When `falsy` the label is used.
-        :param str filterText: A string that should be used when filtering a set of completion items. When `falsy` the label is used.
-        :param str insertText: A string that should be inserted into a document when selecting this completion. When `falsy` the label is used.
-                                The `insertText` is subject to interpretation by the client side. Some tools might not take the string literally. For example
-                                VS Code when code complete is requested in this example `con<cursor position>` and a completion item with an `insertText` of `console` is provided it
-                                will only insert `sole`. Therefore it is recommended to use `textEdit` instead since it avoids additional client side interpretation.
-                                @deprecated Use textEdit instead.
-        :param InsertTextFormat insertTextFormat: The format of the insert text. The format applies to both the `insertText` property
-                                                    and the `newText` property of a provided `textEdit`.
-        :param TextEdit textEdit: An edit which is applied to a document when selecting this completion. When an edit is provided the value of `insertText` is ignored.
-                                    Note:* The range of the edit must be a single line range and it must contain the position at which completion
-                                    has been requested.
-        :param TextEdit additionalTextEdits: An optional array of additional text edits that are applied when selecting this completion.
-                                                Edits must not overlap (including the same insert position) with the main edit nor with themselves.
-                                                Additional text edits should be used to change text unrelated to the current cursor position
-                                                (for example adding an import statement at the top of the file if the completion item will
-                                                insert an unqualified type).
-        :param str commitCharacters: An optional set of characters that when pressed while this completion is active will accept it first and
-                                        then type that character. *Note* that all commit characters should have `length=1` and that superfluous
-                                        characters will be ignored.
-        :param Command command: An optional command that is executed *after* inserting this completion. Note: that
-                                additional modifications to the current document should be described with the additionalTextEdits-property.
-        :param data: An data entry field that is preserved on a completion item between a completion and a completion resolve request.
-        :param float score: Score of the code completion item.
-        """
-        self.label = label
-        self.kind = kind
-        self.detail = detail
-        self.documentation = documentation
-        self.deprecated = deprecated
-        self.presented = presented
-        self.sortText = sortText
-        self.filterText = filterText
-        self.insertText = insertText
-        self.insertTextFormat = insertTextFormat
-        self.textEdit = textEdit
-        self.additionalTextEdits = additionalTextEdits
-        self.commitCharacters = commitCharacters
-        self.command = command
-        self.data = data
-        self.score = score
+    label: str
+    kind: Optional[int] = None
+    detail: Optional[str] = None
+    documentation: Optional[str] = None
+    deprecated: Optional[bool] = None
+    presented: Optional[bool] = None
+    sortText: Optional[str] = None
+    filterText: Optional[str] = None
+    insertText: Optional[str] = None
+    insertTextFormat: Optional[InsertTextFormat] = None
+    textEdit: Optional[TextEdit] = None
+    additionalTextEdits: Optional[TextEdit] = None
+    commitCharacters: Optional[str] = None
+    command: Optional[Command] = None
+    data: Optional[Any] = None
+    score: float = 0.0
 
 
 class CompletionItemKind(enum.Enum):
@@ -536,20 +346,13 @@ class CompletionItemKind(enum.Enum):
     TypeParameter = 25
 
 
-class CompletionList(object):
+class CompletionList(BaseModel):
     """
     Represents a collection of [completion items](#CompletionItem) to be presented in the editor.
     """
 
-    def __init__(self, isIncomplete, items):
-        """
-        Constructs a new CompletionContext instance.
-
-        :param bool isIncomplete: This list it not complete. Further typing should result in recomputing this list.
-        :param CompletionItem items: The completion items.
-        """
-        self.isIncomplete = isIncomplete
-        self.items = [to_type(i, CompletionItem) for i in items]
+    isIncomplete: bool
+    items: List[CompletionItem]
 
 
 class ErrorCodes(enum.Enum):
@@ -570,7 +373,7 @@ class ErrorCodes(enum.Enum):
 
 
 class ResponseError(Exception):
-    def __init__(self, code, message, data=None):
+    def __init__(self, code: ErrorCodes, message: str, data: Optional[Any] = None):
         self.code = code
         self.message = message
         if data:
