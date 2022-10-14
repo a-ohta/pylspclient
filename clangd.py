@@ -83,7 +83,7 @@ def get_reference(
                 lsp_client=lsp_client, symbol=child, uri=uri, documents=documents
             )
     else:
-        line = symbol.location.range.start.line + 3
+        line = symbol.location.range.start.line
         character = symbol.location.range.start.character
         locations = lsp_client.references(
             pylspclient.lsp_structs.TextDocumentIdentifier(uri=uri),
